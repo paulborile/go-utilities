@@ -2,12 +2,10 @@ package main
 
 import (
 	"encoding/xml"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/antchfx/xpath"
 	"golang.org/x/net/html"
 )
 
@@ -19,13 +17,14 @@ type Capability struct {
 
 type Group struct {
 	XMLName    xml.Name     `xml:"group"`
+	ID         string       `xml:"id,attr"`
 	Capability []Capability `xml:"capability"`
 }
 
 type Device struct {
 	XMLName xml.Name `xml:"device"`
 	ID      string   `xml:"id,attr"`
-	Group   Group    `xml:"group"`
+	Group   []Group  `xml:"group"`
 }
 
 type Wurfl struct {
@@ -55,16 +54,13 @@ type Version struct {
 	Statement string `xml:"statement"`
 }
 
-func main() {
-
-	xmlFileName := flag.String("x", "", "Input XML File")
-	flag.Parse()
-
+// DecodeXML : just parse into dom
+func DecodeXML(filename string) *Wurfl {
 	// Read the XML file
-	xmlFile, err := os.Open(*xmlFileName)
+	xmlFile, err := os.Open(filename)
 	if err != nil {
 		fmt.Println("Error opening XML file:", err)
-		return
+		return nil
 	}
 	defer xmlFile.Close()
 
@@ -74,34 +70,26 @@ func main() {
 	err = decoder.Decode(&wurflData)
 	if err != nil {
 		fmt.Println("Error decoding XML:", err)
-		return
+		return nil
 	}
+	return &wurflData
+}
 
-	// Define an XPath filter expression for allowed capability names
-	xp := xpath.MustCompile("//capability[" + createXPathCondition(allowedCapabilities) + "]")
-
-	// Apply the XPath filter to capabilities
-	for _, device := range wurflData.Devices {
-		filteredCapabilities := xpath.Evaluate(xp, html.CreateTokenizer(strings.NewReader(device.Group.RawXML)))
-		device.Group.Capability = make([]Capability, len(filteredCapabilities))
-		for i, capNode := range filteredCapabilities {
-			node := capNode.(*html.Node)
-			device.Group.Capability[i] = Capability{
-				Name:  getNodeAttr(node, "name"),
-				Value: getNodeAttr(node, "value"),
-			}
-		}
-	}
-
+// EncodeXML : only the encoding to memory
+func EncodeXML(wurflData *Wurfl) []byte {
 	// Encode the modified struct back to XML
 	outputXML, err := xml.MarshalIndent(wurflData, "", "  ")
 	if err != nil {
 		fmt.Println("Error encoding XML:", err)
-		return
+		return []byte{}
 	}
+	return outputXML
+}
 
+// WriteXML : only the file write phase
+func WriteXML(outputXML []byte, filename string) {
 	// Write the modified XML to a file
-	err = os.WriteFile("your_output.xml", outputXML, 0644)
+	err := os.WriteFile(filename, outputXML, 0644)
 	if err != nil {
 		fmt.Println("Error writing output XML:", err)
 		return

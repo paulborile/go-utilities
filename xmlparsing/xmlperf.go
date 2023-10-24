@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -44,8 +45,12 @@ func main() {
 	// Create a new XML decoder
 	decoder := xml.NewDecoder(strings.NewReader(string(data)))
 
+	// and and Encoder
+	var buf bytes.Buffer
+	encoder := xml.NewEncoder(&buf)
+
 	for {
-		// Read the next XML token
+		// Read the next XML token, matching every token
 		tok, err := decoder.Token()
 		if err == io.EOF {
 			break // End of file
@@ -53,6 +58,9 @@ func main() {
 			fmt.Println("Error reading XML token:", err)
 			break
 		}
+
+		// generate XML in putput exactly like input 
+		
 
 		switch elem := tok.(type) {
 		case xml.StartElement:
@@ -65,8 +73,28 @@ func main() {
 					fmt.Println("Error decoding XML:", err)
 					break
 				}
-				// fmt.Printf("device id %s, User-Agent %s, fallback %s\n", device.ID, device.UserAgent, device.FallBack)
+				fmt.Printf("DECODE: device id %s, User-Agent %s, fallback %s\n", device.ID, device.UserAgent, device.FallBack)
+				// check if device has to be removed because not in list
+				// TODO
+				encoder.EncodeToken(tok)
+			} else if elem.Name.Local == "capability" {
+				var capa Capability
+
+				// Decode
+				if err := decoder.DecodeElement(&capa, &elem); err != nil {
+					fmt.Println("Error decoding XML:", err)
+					break
+				}
+				fmt.Printf("DECODE: capability name %s, value %s\n", capa.Name, capa.Value)
+				// check if capability has to be removed because not in list
+				// TODO
+				encoder.EncodeToken(tok)
+
 			}
+		default:
+			encoder.EncodeToken(tok)
 		}
 	}
+	encoder.Flush()
+	fmt.Println(buf.String())
 }
